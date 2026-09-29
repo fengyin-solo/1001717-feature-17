@@ -17,6 +17,34 @@ class Settings:
     )
     page_size_default: int = 20
     page_size_max: int = 200
+    # 维保合同履约可见范围：单位编码 -> 名称（HTTP 头只能传 Latin-1，所以用编码）。
+    units: tuple[tuple[str, str], ...] = (
+        ("unit-1", "一车间"),
+        ("unit-2", "二车间"),
+        ("unit-3", "三车间"),
+    )
+    default_unit: str = "unit-1"
+    shared_unit: str = "shared"
+
+    @property
+    def unit_codes(self) -> tuple[str, ...]:
+        return tuple(code for code, _ in self.units)
+
+    @property
+    def unit_names(self) -> tuple[str, ...]:
+        return tuple(name for _, name in self.units)
+
+    def unit_name(self, code: str) -> str:
+        return dict(self.units).get(code, code)
+
+    def unit_code(self, name: str) -> str | None:
+        return {name: code for code, name in self.units}.get(name)
+
+    @property
+    def shared_name(self) -> str:
+        return "共用服务单位"
+
+    expiring_days: int = 30
 
 
 settings = Settings()

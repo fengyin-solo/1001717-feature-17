@@ -28,20 +28,38 @@ class Store:
         return None
 
     def overview(self) -> dict[str, object]:
+        # 合同模块的 pending/abnormal 按履约状态派生口径重算，保证与列表、详情一致。
+        from app.services.contract import (
+            MODULE as CONTRACT_MODULE,
+            STATUS_ACTIVE,
+            derive_abnormal,
+            derive_status,
+        )
+
         modules: list[dict[str, object]] = []
+        active_contracts = 0
         for name in self.module_names():
             rows = self.rows(name)
+            if name == CONTRACT_MODULE:
+                pending = sum(1 for row in rows if derive_status(row) == STATUS_ACTIVE)
+                abnormal = sum(1 for row in rows if derive_abnormal(row))
+                active_contracts = pending
+            else:
+                pending = sum(1 for row in rows if row.get("pending"))
+                abnormal = sum(1 for row in rows if row.get("abnormal"))
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
-                "abnormal": sum(1 for row in rows if row.get("abnormal")),
+                "pending": pending,
+                "abnormal": abnormal,
             })
         cards = [
             {"label": "业务模块", "value": len(modules)},
             {"label": "今日新增", "value": sum(int(item["created"]) for item in modules)},
             {"label": "待处理", "value": sum(int(item["pending"]) for item in modules)},
             {"label": "异常量", "value": sum(int(item["abnormal"]) for item in modules)},
+            # 在履合同数：与维保合同列表、详情的履约状态取同一份派生结果。
+            {"label": "在履合同数", "value": active_contracts},
         ]
         return {"cards": cards, "modules": modules}
 

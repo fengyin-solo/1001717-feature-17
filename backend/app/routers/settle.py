@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
 from app.schemas import ActionResult, EntryPayload, PageResult
 from app.services.settle import SettleService
@@ -40,9 +40,14 @@ def get_entry(entry_id: int) -> dict:
 
 
 @router.post("", response_model=ActionResult)
-def create_entry(payload: EntryPayload) -> ActionResult:
-    """登记一条结算单，缺字段时说明原因而不是静默丢弃。"""
-    entry, missing = service.create_entry(payload.values)
+def create_entry(
+    payload: EntryPayload,
+    x_service_unit: str | None = Header(default=None, alias="X-Service-Unit"),
+) -> ActionResult:
+    """登记一条结算单，缺字段或关联合同不属于本单位时说明原因而不是静默丢弃。"""
+    entry, missing, reason = service.create_entry(payload.values, unit=x_service_unit)
+    if reason:
+        return ActionResult(ok=False, message=reason)
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="结算单已登记", entry=entry)
