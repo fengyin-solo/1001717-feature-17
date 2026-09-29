@@ -10,7 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import ROUTERS
+from app.services.contract import STATUS_REFRESHERS, ContractService
 from app.store import store
+
+contract_service = ContractService()
 
 app = FastAPI(title="特种设备点检运维平台", version="1.0.0")
 
@@ -34,5 +37,9 @@ def health() -> dict[str, object]:
 
 @app.get("/api/overview")
 def overview() -> dict[str, object]:
-    """运营概览：把各业务模块的待处理量汇总成看板卡片。"""
-    return store.overview()
+    """运营概览：合同履约状态先按统一口径重算，在履合同数随之刷新。"""
+    data = store.overview(status_refresh=STATUS_REFRESHERS)
+    cards = list(data["cards"])
+    cards.append({"label": "在履合同数", "value": contract_service.count_active()})
+    data["cards"] = cards
+    return data

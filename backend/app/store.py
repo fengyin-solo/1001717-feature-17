@@ -4,9 +4,12 @@
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from app.seed import SEED_ROWS
+
+# 内部辅助表（例如合同履约历史），不进运营概览的模块清单
+HIDDEN_TABLES = {"contract_history"}
 
 
 class Store:
@@ -14,9 +17,11 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        for name in HIDDEN_TABLES:
+            self._tables.setdefault(name, [])
 
     def module_names(self) -> list[str]:
-        return sorted(self._tables)
+        return sorted(name for name in self._tables if name not in HIDDEN_TABLES)
 
     def rows(self, module: str) -> list[dict[str, Any]]:
         return self._tables.setdefault(module, [])
@@ -27,10 +32,27 @@ class Store:
                 return row
         return None
 
-    def overview(self) -> dict[str, object]:
+    def delete(self, module: str, entry_id: int) -> bool:
+        rows = self.rows(module)
+        for index, row in enumerate(rows):
+            if int(row.get("id", 0)) == entry_id:
+                rows.pop(index)
+                return True
+        return False
+
+    def next_id(self, module: str) -> int:
+        return max((int(row.get("id", 0)) for row in self.rows(module)), default=0) + 1
+
+    def overview(self, status_refresh: dict[str, Callable[[dict[str, Any]], str]] | None = None) -> dict[str, object]:
+        """汇总看板。status_refresh 里登记的模块先按业务口径重算状态，保证各处口径一致。"""
+        refreshers = status_refresh or {}
         modules: list[dict[str, object]] = []
         for name in self.module_names():
             rows = self.rows(name)
+            if name in refreshers:
+                # 合同金额、到期日期变动后，概览与列表必须取同一份履约状态
+                for row in rows:
+                    refreshers[name](row)
             modules.append({
                 "name": name,
                 "created": len(rows),
